@@ -1,3 +1,16 @@
+/**
+ * POST /api/upload
+ *
+ * Accepts a multipart form with a single `file` field. Validates extension
+ * and size (10 MB cap), then runs the full ingestion pipeline (load → chunk
+ * → embed → upsert) via `indexDoc()`.
+ *
+ * Runs on the Node runtime (PDF parsing needs Node APIs) with maxDuration
+ * raised to 60s so a typical PDF can finish within Vercel's serverless
+ * timeout.
+ *
+ * Response: { docId, filename, numChunks } on success, { error } on failure.
+ */
 import { NextResponse } from "next/server";
 import { indexDoc } from "@/lib/rag/index-doc";
 import { detectExt } from "@/lib/rag/load";

@@ -1,9 +1,20 @@
+/**
+ * Vector store + embeddings setup.
+ *
+ * - Embeddings: Google Gemini `gemini-embedding-001` (3072-dim).
+ * - Storage:    Qdrant Cloud, single collection shared across all uploads.
+ *               Each chunk's payload carries its `docId`, and the
+ *               `metadata.docId` field is keyword-indexed at collection
+ *               creation time so that filtered retrieval is fast.
+ *
+ * `ensureCollection()` is idempotent — it creates the collection on first
+ * use and is a no-op afterwards. Called from indexDoc() before any upsert.
+ */
 import { QdrantClient } from "@qdrant/js-client-rest";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 
-// Gemini's text-embedding-004 produces 768-dim vectors.
-export const EMBEDDING_MODEL = "text-embedding-004";
-export const EMBEDDING_DIM = 768;
+export const EMBEDDING_MODEL = "gemini-embedding-001";
+export const EMBEDDING_DIM = 3072;
 
 function env(name: string): string {
   const v = process.env[name];
@@ -11,6 +22,7 @@ function env(name: string): string {
   return v;
 }
 
+/** Reads Qdrant connection details from env, with a sensible default name. */
 export function qdrantConfig() {
   return {
     url: env("QDRANT_URL"),
@@ -31,7 +43,13 @@ export function getQdrantClient() {
   return new QdrantClient({ url, apiKey });
 }
 
-// Idempotent: creates collection on first use, no-op afterwards.
+/**
+ * Create the collection on first use; no-op if it already exists.
+ *
+ * Also creates a keyword index on `metadata.docId` so that the filtered
+ * similarity search in retrieve.ts is fast (otherwise Qdrant scans every
+ * point's payload).
+ */
 export async function ensureCollection() {
   const { collectionName } = qdrantConfig();
   const client = getQdrantClient();

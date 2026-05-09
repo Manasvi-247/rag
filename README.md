@@ -1,77 +1,154 @@
-# NotebookLM RAG
+<div align="center">
 
-A minimal Google NotebookLM clone: upload a document (PDF, TXT, or MD), then chat with it. Answers are grounded only in the uploaded content using a full RAG pipeline. Runs entirely on **free tiers** — Google Gemini for embeddings and chat, Qdrant Cloud for vectors, Vercel for hosting.
+# 📒 NotebookLM RAG
 
-## Live demo
+**Upload any document. Ask anything. Get grounded answers.**
 
-- **App:** _add Vercel URL after deploy_
-- **Repo:** _add GitHub URL_
+A minimal Google NotebookLM clone — a full Retrieval-Augmented Generation pipeline that runs entirely on free tiers.
 
-## What it does
+[![Live](https://img.shields.io/badge/live-rag--woad--three.vercel.app-ff70a6?style=for-the-badge)](https://rag-woad-three.vercel.app/)
+[![Repo](https://img.shields.io/badge/source-Manasvi--247%2Frag-70d6ff?style=for-the-badge&logo=github)](https://github.com/Manasvi-247/rag)
+[![Stack](https://img.shields.io/badge/stack-Next.js%20·%20Gemini%20·%20Qdrant-ff9770?style=for-the-badge)](#-tech-stack)
 
-1. You upload a file from the browser.
-2. The server parses it, splits it into overlapping text chunks, embeds each chunk with OpenAI, and stores the vectors (with `docId` metadata) in Qdrant Cloud.
-3. When you ask a question, the server embeds the query, retrieves the top-k most similar chunks for that specific `docId`, builds a strict grounded prompt, and sends it to `gemini-2.0-flash`.
-4. The model is instructed to answer **only** from retrieved context and cite page numbers; otherwise it replies _"I don't know based on this document."_
+By [@Manasvi-247](https://github.com/Manasvi-247)
 
-## Architecture
+</div>
+
+---
+
+## ✨ Features
+
+- 📄 **Upload** PDF, TXT, or MD (up to 10 MB)
+- ✂️ **Chunked** with `RecursiveCharacterTextSplitter` (1000/200) — paragraph-aware
+- 🧠 **Embedded** with Google Gemini `gemini-embedding-001` (3072 dims)
+- 🗄️ **Stored** in Qdrant Cloud, payload-indexed by `docId` for multi-doc isolation
+- 🔍 **Retrieved** by cosine similarity, top-k = 4, filtered to a single document
+- 🎯 **Grounded** answers — strict prompt; the model says _"I don't know"_ if context is missing
+- 📍 **Cited** with page numbers when the source is a PDF
+- 💸 **$0** to run — Gemini free tier + Qdrant free cluster + Vercel Hobby
+
+## 🚀 Live demo
+
+> https://rag-woad-three.vercel.app/
+
+Open the link, drop a PDF, ask a question. No login required.
+
+## 🧱 Tech stack
+
+| Layer | Tech |
+|---|---|
+| Frontend | Next.js 14 (App Router), React 18, Tailwind CSS |
+| API | Next.js Route Handlers (Node runtime) |
+| Document loading | `@langchain/community` `PDFLoader`, native UTF-8 read |
+| Chunking | `@langchain/textsplitters` — `RecursiveCharacterTextSplitter` |
+| Embeddings | Google Gemini `gemini-embedding-001` (3072-dim) |
+| Vector store | Qdrant Cloud, REST + LangChain `QdrantVectorStore` |
+| LLM | Google Gemini `gemini-2.5-flash-lite` |
+| Hosting | Vercel |
+
+## 🏛️ Architecture
 
 ```
-Browser
-  │
-  ├── POST /api/upload (multipart) ──► load → chunk → embed → upsert to Qdrant (with docId)
-  │                                                     ▲
-  │                                                     └── returns { docId, filename, numChunks }
-  │
-  └── POST /api/chat { docId, question } ─► embed query → retrieve top-k filtered by docId
-                                              → grounded system prompt → gpt-4.1-mini
-                                              → { answer, sources[] }
+            ┌──────────────────┐
+            │     Browser      │
+            └─────┬──────┬─────┘
+                  │      │
+   POST /api/upload      POST /api/chat
+   (multipart)           ({ docId, question })
+                  │      │
+                  ▼      ▼
+       ┌─────────────────────────┐
+       │   Next.js API routes    │
+       │  (Node, maxDuration 60) │
+       └─────┬─────────────┬─────┘
+             │             │
+   ┌─────────▼──┐    ┌────▼──────────────┐
+   │ load → chunk│   │ embed query        │
+   │ → embed →   │   │ → similaritySearch │
+   │ upsert      │   │   (filter docId)   │
+   │             │   │ → grounded prompt  │
+   │             │   │ → Gemini chat      │
+   └─────┬───────┘   └────┬───────────────┘
+         │                │
+         ▼                ▼
+    ┌──────────┐    ┌──────────────┐
+    │ Qdrant   │    │  Gemini API  │
+    │  Cloud   │    │              │
+    └──────────┘    └──────────────┘
 ```
 
-## RAG pipeline
+## 🔁 RAG pipeline
 
 | Stage | Implementation | File |
 |---|---|---|
-| Ingestion | `PDFLoader` (LangChain) for PDFs, UTF-8 read for `.txt` / `.md` | [`lib/rag/load.ts`](lib/rag/load.ts) |
-| Chunking | `RecursiveCharacterTextSplitter`, 1000 chars, 200 overlap | [`lib/rag/chunk.ts`](lib/rag/chunk.ts) |
-| Embedding | Google Gemini `text-embedding-004` (768 dims) | [`lib/rag/store.ts`](lib/rag/store.ts) |
-| Storage | Qdrant Cloud, single collection, payload-indexed `metadata.docId` for filtered search | [`lib/rag/store.ts`](lib/rag/store.ts) |
-| Retrieval | Cosine similarity, top-k = 4, filtered by `docId` | [`lib/rag/retrieve.ts`](lib/rag/retrieve.ts) |
-| Generation | Google Gemini `gemini-2.0-flash` with strict grounded system prompt | [`lib/rag/retrieve.ts`](lib/rag/retrieve.ts) |
+| **Ingestion** | `PDFLoader` (LangChain) for PDFs, UTF-8 read for `.txt` / `.md` | [`lib/rag/load.ts`](lib/rag/load.ts) |
+| **Chunking** | `RecursiveCharacterTextSplitter`, 1000 chars, 200 overlap | [`lib/rag/chunk.ts`](lib/rag/chunk.ts) |
+| **Embedding** | Google Gemini `gemini-embedding-001` (3072 dims) | [`lib/rag/store.ts`](lib/rag/store.ts) |
+| **Storage** | Qdrant Cloud, single collection, payload-indexed `metadata.docId` | [`lib/rag/store.ts`](lib/rag/store.ts) |
+| **Retrieval** | Cosine similarity, top-k = 4, filtered by `docId` | [`lib/rag/retrieve.ts`](lib/rag/retrieve.ts) |
+| **Generation** | `gemini-2.5-flash-lite` with strict grounded system prompt | [`lib/rag/retrieve.ts`](lib/rag/retrieve.ts) |
 
-## Chunking strategy (documented)
+## ✂️ Chunking strategy
 
 We use LangChain's **`RecursiveCharacterTextSplitter`** with:
-- `chunkSize: 1000` characters
-- `chunkOverlap: 200` characters
 
-The splitter tries separators in order — `"\n\n"` (paragraph) → `"\n"` (line) → `" "` (word) → `""` (char) — falling back only when a chunk would otherwise exceed the size limit. This preserves natural document structure: paragraphs and sentences stay intact whenever possible, so each chunk is a self-contained semantic unit suitable for embedding.
+| Parameter | Value | Why |
+|---|---|---|
+| `chunkSize` | **1000 chars** (~250 tokens) | Big enough to be self-contained, small enough for precise retrieval |
+| `chunkOverlap` | **200 chars** | Sentences split across boundaries still appear whole inside at least one chunk |
+| Separators (in order) | `"\n\n"` → `"\n"` → `" "` → `""` | Paragraph → line → word → char fallback, preserving natural document structure |
 
-The 200-character overlap ensures that a sentence split across a chunk boundary still appears in full inside at least one chunk, so retrieval doesn't miss answers that straddle the boundary.
+The recursive splitter tries the largest separator first and only falls back when a chunk would otherwise exceed the size limit. The result: paragraphs and sentences stay intact whenever possible, so each chunk is a coherent semantic unit.
 
 **Why not other strategies?**
-- _Token-based splitting_ would only matter near the embedding model's token limit; at ~250 tokens per chunk we are nowhere near it.
-- _Semantic chunking_ requires N extra embedding calls per document, produces uneven chunk sizes, and behaves unpredictably on PDFs with messy extracted text. For a generic NotebookLM that handles any uploaded document, the recursive splitter is more reliable.
 
-## Multi-document isolation
+- **Token-based splitting** matters only near the embedding model's token limit. At ~250 tokens per chunk we are nowhere near it, so the extra `tiktoken` dependency buys nothing.
+- **Semantic chunking** sounds smart but: (a) requires an extra embedding call per sentence, (b) produces uneven chunk sizes, (c) misbehaves on PDFs with messy extracted text (tables, headers, footers). For a generic NotebookLM that handles any uploaded document, recursive character splitting is more reliable.
 
-Every upload gets a fresh `docId = crypto.randomUUID()`. All chunks for that doc are tagged with this `docId` in their Qdrant payload. The retrieval call passes a Qdrant filter:
+## 🔒 Multi-document isolation
+
+Every upload gets a fresh `docId = crypto.randomUUID()`. All chunks for that document are tagged with this `docId` in their Qdrant payload. Retrieval filters by `docId` so queries never leak across documents:
 
 ```ts
-{ must: [{ key: "metadata.docId", match: { value: docId } }] }
+const results = await store.similaritySearch(question, 4, {
+  must: [{ key: "metadata.docId", match: { value: docId } }],
+});
 ```
 
-The `metadata.docId` field is keyword-indexed at collection creation time, so this filter is fast even at scale. This lets multiple users / multiple documents share one Qdrant collection without query crosstalk.
+The `metadata.docId` field is **keyword-indexed at collection creation time** ([`lib/rag/store.ts`](lib/rag/store.ts)), so this filter is fast even at scale. Multiple users / multiple documents share one Qdrant collection without query crosstalk.
 
-## Local setup
+## 📁 Project structure
 
-Prerequisites: Node 18+, a free Google AI Studio API key, a free Qdrant Cloud cluster.
+```
+app/
+├── api/
+│   ├── upload/route.ts       # POST: multipart → indexDoc()
+│   └── chat/route.ts         # POST: { docId, question } → answerQuestion()
+├── page.tsx                  # main UI: uploader + chat
+├── layout.tsx
+└── globals.css               # Tailwind + custom palette
+components/
+├── Uploader.tsx              # drag & drop file uploader
+└── Chat.tsx                  # message list + composer
+lib/rag/
+├── load.ts                   # PDF / TXT / MD → LangChain Documents
+├── chunk.ts                  # RecursiveCharacterTextSplitter
+├── store.ts                  # Qdrant client, embeddings, ensureCollection()
+├── index-doc.ts              # full ingestion pipeline
+└── retrieve.ts               # retrieval + grounded generation
+```
 
-- Google Gemini key: https://aistudio.google.com/apikey (free, no card)
-- Qdrant Cloud: https://cloud.qdrant.io (free 1 GB cluster, no card)
+## ⚙️ Local setup
+
+**Prerequisites**: Node 18+, a free Google AI Studio API key, a free Qdrant Cloud cluster.
+
+| Service | Where | Notes |
+|---|---|---|
+| Google Gemini | https://aistudio.google.com/apikey | Free, no credit card |
+| Qdrant Cloud | https://cloud.qdrant.io | Free 1 GB cluster, no credit card |
 
 ```bash
-git clone <this repo>
+git clone https://github.com/Manasvi-247/rag.git
 cd rag
 npm install
 cp .env.example .env.local
@@ -80,42 +157,28 @@ npm run dev
 # open http://localhost:3000
 ```
 
-## Deployment (Vercel)
+> If port 3000 is busy: `npm run dev -- -p 3010`
+
+## ☁️ Deployment (Vercel)
 
 1. Push the repo to GitHub (public).
 2. Import the repo at https://vercel.com/new.
-3. Add the same env vars (`GOOGLE_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`, optional `QDRANT_COLLECTION`).
+3. Add env vars under **Settings → Environment Variables**:
+   `GOOGLE_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`, optional `QDRANT_COLLECTION`.
 4. Deploy.
 
-Notes:
-- API routes set `maxDuration = 60` so uploads up to ~10 MB finish well within the limit.
-- Files are streamed into `/tmp` for PDF parsing (the only writable path on Vercel serverless) and deleted right after.
+**Operational notes**
 
-## Project structure
+- API routes set `runtime = "nodejs"` and `maxDuration = 60` so uploads up to ~10 MB finish well within the timeout.
+- PDFs are streamed to `/tmp` for parsing (the only writable path on Vercel serverless) and deleted immediately after.
+- The Qdrant collection is **created on first upload** if it doesn't exist — no migration step needed.
 
-```
-app/
-  api/upload/route.ts      # multipart upload → indexDoc()
-  api/chat/route.ts        # { docId, question } → answerQuestion()
-  page.tsx                 # uploader + chat UI
-  layout.tsx
-  globals.css
-components/
-  Uploader.tsx
-  Chat.tsx
-lib/rag/
-  load.ts                  # PDF / TXT / MD loader
-  chunk.ts                 # RecursiveCharacterTextSplitter
-  store.ts                 # Qdrant client, embeddings, ensureCollection()
-  index-doc.ts             # full ingestion pipeline
-  retrieve.ts              # retrieval + grounded generation
-```
+## 🔧 Environment variables
 
-## Env vars
+| Var | Purpose | Example |
+|---|---|---|
+| `GOOGLE_API_KEY` | Gemini embeddings + chat | `AIza...` |
+| `QDRANT_URL` | Qdrant Cloud endpoint | `https://xyz.aws.cloud.qdrant.io:6333` |
+| `QDRANT_API_KEY` | Qdrant Cloud API key | `eyJhbGciOi...` |
+| `QDRANT_COLLECTION` | Collection name (optional) | `notebooklm` _(default)_ |
 
-| Var | Purpose |
-|---|---|
-| `GOOGLE_API_KEY` | Embeddings + chat completions (Gemini) |
-| `QDRANT_URL` | Qdrant Cloud endpoint (https, port 6333) |
-| `QDRANT_API_KEY` | Qdrant Cloud API key |
-| `QDRANT_COLLECTION` | Collection name (default: `notebooklm`) |

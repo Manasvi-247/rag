@@ -40,7 +40,7 @@ export default function Home() {
         </a>
       </header>
 
-      <div className="grid flex-1 grid-cols-1 gap-5 md:grid-cols-[340px_1fr]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 md:grid-cols-[340px_1fr]">
         <aside className="flex flex-col gap-4">
           <Uploader onIndexed={setDoc} />
 
@@ -89,13 +89,13 @@ export default function Home() {
           )}
         </aside>
 
-        <section className="min-h-[60vh]">
+        <section className="min-h-0 h-full">
           <Chat docId={doc?.docId ?? null} filename={doc?.filename ?? null} />
         </section>
       </div>
 
       <footer className="text-center text-[11px] text-[#5b4f78]">
-        Grounded retrieval &middot; text-embedding-004 &middot; gemini-2.0-flash
+        Grounded retrieval &middot; gemini-embedding-001 &middot; gemini-2.5-flash-lite
       </footer>
     </main>
   );

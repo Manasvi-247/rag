@@ -1,3 +1,15 @@
+/**
+ * POST /api/chat
+ *
+ * Accepts JSON `{ docId, question }` and returns a grounded answer plus
+ * structured `sources[]` (page + snippet) drawn from the indexed document.
+ *
+ * Delegates to `answerQuestion()` which embeds the query, retrieves the
+ * top-k chunks for that docId from Qdrant, and asks Gemini to answer
+ * strictly from that context.
+ *
+ * Response: { answer, sources } on success, { error } on failure.
+ */
 import { NextResponse } from "next/server";
 import { answerQuestion } from "@/lib/rag/retrieve";
 

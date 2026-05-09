@@ -106,7 +106,7 @@ export default function Chat({ docId, filename }: Props) {
         )}
       </div>
 
-      <div ref={scrollerRef} className="scroll-pretty flex-1 space-y-5 overflow-y-auto px-5 py-6">
+      <div ref={scrollerRef} className="scroll-pretty min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-6">
         {messages.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#ff70a6] via-[#ff9770] to-[#70d6ff] shadow-xl shadow-[#ff70a6]/30 ring-4 ring-white">

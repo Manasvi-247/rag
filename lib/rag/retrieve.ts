@@ -1,3 +1,21 @@
+/**
+ * Retrieval + grounded generation — the "answer" half of the RAG flow.
+ *
+ *   question ──► embed ──► top-k similarity (filtered by docId)
+ *                  └──► strict grounded prompt ──► Gemini chat ──► answer + sources
+ *
+ * Grounding strategy:
+ * - The system prompt instructs the model to answer ONLY from the supplied
+ *   context blocks and to reply "I don't know based on this document" when
+ *   the answer isn't present. This is what makes the assistant resistant to
+ *   hallucination — it has no incentive to draw on its training knowledge.
+ * - Each retrieved chunk is labelled with its page number (when available)
+ *   so the model can cite pages, and the response object also includes
+ *   structured `sources[]` for the UI to render.
+ *
+ * The Qdrant filter `must: [{ key: "metadata.docId", match: { value: docId } }]`
+ * keeps multiple users' uploads cleanly isolated inside a single collection.
+ */
 import { QdrantVectorStore } from "@langchain/qdrant";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { getEmbeddings, qdrantConfig } from "./store";
@@ -12,7 +30,7 @@ export interface AnswerResult {
   sources: Source[];
 }
 
-const CHAT_MODEL = "gemini-2.0-flash";
+const CHAT_MODEL = "gemini-2.5-flash-lite";
 const TOP_K = 4;
 
 export async function answerQuestion(
@@ -38,6 +56,8 @@ export async function answerQuestion(
     };
   }
 
+  // Build labelled context blocks. The label gives the model a stable handle
+  // for citation ("page 4") and helps it disambiguate between chunks.
   const contextBlocks = results
     .map((r, i) => {
       const page = r.metadata?.loc?.pageNumber ?? r.metadata?.page;
@@ -76,6 +96,7 @@ ${contextBlocks}`;
       ? response.content.trim()
       : JSON.stringify(response.content);
 
+  // Trim each chunk to a short preview for the UI's source list.
   const sources: Source[] = results.map((r) => ({
     page: r.metadata?.loc?.pageNumber ?? r.metadata?.page,
     snippet: r.pageContent.slice(0, 220),
