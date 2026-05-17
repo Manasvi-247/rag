@@ -8,10 +8,14 @@ interface Source {
   snippet: string;
 }
 
+type CragMode = "ok" | "rewritten" | "abstain";
+
 interface Message {
   role: "user" | "assistant";
   content: string;
   sources?: Source[];
+  mode?: CragMode;
+  rewrittenQuery?: string;
 }
 
 interface Props {
@@ -61,7 +65,13 @@ export default function Chat({ docId, filename }: Props) {
       if (!res.ok) throw new Error(data.error || "Chat failed");
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: data.answer, sources: data.sources },
+        {
+          role: "assistant",
+          content: data.answer,
+          sources: data.sources,
+          mode: data.mode,
+          rewrittenQuery: data.rewrittenQuery,
+        },
       ]);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Chat failed";
@@ -163,6 +173,21 @@ export default function Chat({ docId, filename }: Props) {
                   <div className="bubble-assistant rounded-2xl rounded-tl-md px-4 py-2.5 text-sm">
                     <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
                   </div>
+                  {m.mode === "rewritten" && m.rewrittenQuery && (
+                    <p className="mt-1.5 ml-1 text-[11px] text-[#5b4f78]">
+                      <span className="mr-1.5 inline-block rounded-md bg-[#ffd670]/30 px-1.5 py-0.5 text-[10px] font-semibold text-[#7a5a00] ring-1 ring-[#ffd670]/60">
+                        CRAG · rewrote
+                      </span>
+                      <span className="italic">“{m.rewrittenQuery}”</span>
+                    </p>
+                  )}
+                  {m.mode === "abstain" && (
+                    <p className="mt-1.5 ml-1 text-[11px] text-[#5b4f78]">
+                      <span className="inline-block rounded-md bg-[#ff70a6]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[#a8336a] ring-1 ring-[#ff70a6]/40">
+                        CRAG · abstained (no relevant chunks)
+                      </span>
+                    </p>
+                  )}
                   {m.sources && m.sources.length > 0 && (
                     <details className="group mt-2 ml-1 text-xs">
                       <summary className="cursor-pointer list-none text-[#5b4f78] transition hover:text-[#ff70a6]">

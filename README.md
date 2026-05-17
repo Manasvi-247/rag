@@ -20,6 +20,7 @@ By [@Manasvi-247](https://github.com/Manasvi-247)
 
 - 📄 **Upload** PDF, TXT, MD, or CSV (up to 10 MB)
 - 🧾 **CSV-aware** — each row becomes its own retrievable chunk with row-number citations
+- 🧪 **Corrective RAG (CRAG)** — every answer is fed through a relevance grader; if retrieval fails, the query is rewritten and retried before the model abstains
 - ✂️ **Chunked** with `RecursiveCharacterTextSplitter` (1000/200) — paragraph-aware
 - 🧠 **Embedded** with Google Gemini `gemini-embedding-001` (3072 dims)
 - 🗄️ **Stored** in Qdrant Cloud, payload-indexed by `docId` for multi-doc isolation
@@ -86,8 +87,10 @@ Open the link, drop a PDF, ask a question. No login required.
 | **Chunking** | `RecursiveCharacterTextSplitter`, 1000 chars, 200 overlap | [`lib/rag/chunk.ts`](lib/rag/chunk.ts) |
 | **Embedding** | Google Gemini `gemini-embedding-001` (3072 dims) | [`lib/rag/store.ts`](lib/rag/store.ts) |
 | **Storage** | Qdrant Cloud, single collection, payload-indexed `metadata.docId` | [`lib/rag/store.ts`](lib/rag/store.ts) |
-| **Retrieval** | Cosine similarity, top-k = 4, filtered by `docId` | [`lib/rag/retrieve.ts`](lib/rag/retrieve.ts) |
-| **Generation** | `gemini-2.5-flash-lite` with strict grounded system prompt | [`lib/rag/retrieve.ts`](lib/rag/retrieve.ts) |
+| **Retrieval** | Cosine similarity, top-k = 8 candidates, filtered by `docId` | [`lib/rag/retrieve.ts`](lib/rag/retrieve.ts) |
+| **CRAG grading** | One Gemini call labels every retrieved chunk `relevant` / `ambiguous` / `irrelevant`; irrelevant chunks are dropped before generation | [`lib/rag/retrieve.ts`](lib/rag/retrieve.ts) |
+| **CRAG fallback** | If everything is graded irrelevant, the query is rewritten and retrieval retried once before the model abstains | [`lib/rag/retrieve.ts`](lib/rag/retrieve.ts) |
+| **Generation** | `gemini-2.5-flash-lite` with strict grounded system prompt over the kept chunks | [`lib/rag/retrieve.ts`](lib/rag/retrieve.ts) |
 
 ## ✂️ Chunking strategy
 
@@ -105,6 +108,36 @@ The recursive splitter tries the largest separator first and only falls back whe
 
 - **Token-based splitting** matters only near the embedding model's token limit. At ~250 tokens per chunk we are nowhere near it, so the extra `tiktoken` dependency buys nothing.
 - **Semantic chunking** sounds smart but: (a) requires an extra embedding call per sentence, (b) produces uneven chunk sizes, (c) misbehaves on PDFs with messy extracted text (tables, headers, footers). For a generic NotebookLM that handles any uploaded document, recursive character splitting is more reliable.
+
+## 🧪 Corrective RAG (CRAG)
+
+Vanilla RAG blindly trusts whatever the retriever returns. When the retrieved chunks are weak or off-topic the model is forced to either hallucinate or abstain. **Corrective RAG** wraps a self-evaluation loop around retrieval to fix that.
+
+This app implements a CRAG variant tuned for single-document grounding:
+
+```
+question
+   ↓
+retrieve top-8 chunks                ← wider candidate pool than vanilla RAG
+   ↓
+LLM grader (one batched call)        ← labels each chunk: relevant / ambiguous / irrelevant
+   ↓
+   ├── any kept?  ──► answer using kept chunks                  (mode: "ok")
+   ├── all dropped?
+   │       ↓
+   │   rewrite the question          ← expand pronouns, add specifics
+   │       ↓
+   │   retrieve + grade again
+   │       ↓
+   │       ├── any kept? ──► answer                              (mode: "rewritten")
+   │       └── still nothing? ──► "I don't know based on this document" (mode: "abstain")
+```
+
+**Differences from the original CRAG paper.** The published version falls back to **web search** when retrieval fails. We deliberately don't — the assignment requires answers grounded only in the uploaded document, and a web fallback would break that contract. The grading + query-rewrite steps are the parts of CRAG that *strengthen* document-grounded RAG without leaking the world in.
+
+**Cost.** A typical question now uses 2 Gemini calls (grade + answer) instead of 1; a rewritten question uses 4. All free-tier friendly.
+
+**Visibility.** The chat UI shows a small badge when CRAG rewrote the question or abstained, so you can see when the corrective layer kicked in.
 
 ## 🔒 Multi-document isolation
 
@@ -135,8 +168,8 @@ lib/rag/
 ├── load.ts                   # PDF / TXT / MD / CSV → LangChain Documents
 ├── chunk.ts                  # RecursiveCharacterTextSplitter
 ├── store.ts                  # Qdrant client, embeddings, ensureCollection()
-├── index-doc.ts              # full ingestion pipeline
-└── retrieve.ts               # retrieval + grounded generation
+├── index-doc.ts              # full ingestion pipeline (with empty-vector filter)
+└── retrieve.ts               # CRAG: retrieve → grade → (rewrite) → grounded generation
 ```
 
 ## ⚙️ Local setup
