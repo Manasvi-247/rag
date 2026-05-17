@@ -22,6 +22,7 @@ import { getEmbeddings, qdrantConfig } from "./store";
 
 export interface Source {
   page?: number;
+  row?: number;
   snippet: string;
 }
 
@@ -57,11 +58,19 @@ export async function answerQuestion(
   }
 
   // Build labelled context blocks. The label gives the model a stable handle
-  // for citation ("page 4") and helps it disambiguate between chunks.
+  // for citation ("page 4" / "row 12") and helps it disambiguate between chunks.
   const contextBlocks = results
     .map((r, i) => {
       const page = r.metadata?.loc?.pageNumber ?? r.metadata?.page;
-      const tag = page ? `[chunk ${i + 1} | page ${page}]` : `[chunk ${i + 1}]`;
+      const row = r.metadata?.row;
+      const locator = page
+        ? `page ${page}`
+        : row !== undefined
+          ? `row ${row}`
+          : null;
+      const tag = locator
+        ? `[chunk ${i + 1} | ${locator}]`
+        : `[chunk ${i + 1}]`;
       return `${tag}\n${r.pageContent}`;
     })
     .join("\n\n---\n\n");
@@ -71,7 +80,7 @@ export async function answerQuestion(
 Strict rules:
 - If the answer is not contained in the context, reply exactly: "I don't know based on this document."
 - Do not use outside knowledge.
-- When useful, cite page numbers in parentheses, e.g. "(page 4)".
+- When useful, cite the source location in parentheses, e.g. "(page 4)" for PDFs or "(row 12)" for CSVs.
 - Be concise and direct.
 
 Context:
@@ -99,6 +108,7 @@ ${contextBlocks}`;
   // Trim each chunk to a short preview for the UI's source list.
   const sources: Source[] = results.map((r) => ({
     page: r.metadata?.loc?.pageNumber ?? r.metadata?.page,
+    row: r.metadata?.row,
     snippet: r.pageContent.slice(0, 220),
   }));
 

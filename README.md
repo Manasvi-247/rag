@@ -18,13 +18,14 @@ By [@Manasvi-247](https://github.com/Manasvi-247)
 
 ## ✨ Features
 
-- 📄 **Upload** PDF, TXT, or MD (up to 10 MB)
+- 📄 **Upload** PDF, TXT, MD, or CSV (up to 10 MB)
+- 🧾 **CSV-aware** — each row becomes its own retrievable chunk with row-number citations
 - ✂️ **Chunked** with `RecursiveCharacterTextSplitter` (1000/200) — paragraph-aware
 - 🧠 **Embedded** with Google Gemini `gemini-embedding-001` (3072 dims)
 - 🗄️ **Stored** in Qdrant Cloud, payload-indexed by `docId` for multi-doc isolation
 - 🔍 **Retrieved** by cosine similarity, top-k = 4, filtered to a single document
 - 🎯 **Grounded** answers — strict prompt; the model says _"I don't know"_ if context is missing
-- 📍 **Cited** with page numbers when the source is a PDF
+- 📍 **Cited** with page numbers (PDFs) or row numbers (CSVs)
 - 💸 **$0** to run — Gemini free tier + Qdrant free cluster + Vercel Hobby
 
 ## 🚀 Live demo
@@ -81,7 +82,7 @@ Open the link, drop a PDF, ask a question. No login required.
 
 | Stage | Implementation | File |
 |---|---|---|
-| **Ingestion** | `PDFLoader` (LangChain) for PDFs, UTF-8 read for `.txt` / `.md` | [`lib/rag/load.ts`](lib/rag/load.ts) |
+| **Ingestion** | `PDFLoader` for PDFs, UTF-8 read for `.txt` / `.md`, in-process parser for `.csv` (one Document per row) | [`lib/rag/load.ts`](lib/rag/load.ts) |
 | **Chunking** | `RecursiveCharacterTextSplitter`, 1000 chars, 200 overlap | [`lib/rag/chunk.ts`](lib/rag/chunk.ts) |
 | **Embedding** | Google Gemini `gemini-embedding-001` (3072 dims) | [`lib/rag/store.ts`](lib/rag/store.ts) |
 | **Storage** | Qdrant Cloud, single collection, payload-indexed `metadata.docId` | [`lib/rag/store.ts`](lib/rag/store.ts) |
@@ -131,7 +132,7 @@ components/
 ├── Uploader.tsx              # drag & drop file uploader
 └── Chat.tsx                  # message list + composer
 lib/rag/
-├── load.ts                   # PDF / TXT / MD → LangChain Documents
+├── load.ts                   # PDF / TXT / MD / CSV → LangChain Documents
 ├── chunk.ts                  # RecursiveCharacterTextSplitter
 ├── store.ts                  # Qdrant client, embeddings, ensureCollection()
 ├── index-doc.ts              # full ingestion pipeline

@@ -68,7 +68,7 @@ export default function Uploader({ onIndexed }: Props) {
             Upload
           </span>
           <span className="chip rounded-full px-2 py-0.5 text-[10px] font-medium">
-            PDF · TXT · MD · 10 MB
+            PDF · TXT · MD · CSV · 10 MB
           </span>
         </div>
 
@@ -93,7 +93,7 @@ export default function Uploader({ onIndexed }: Props) {
           <input
             ref={inputRef}
             type="file"
-            accept=".pdf,.txt,.md"
+            accept=".pdf,.txt,.md,.csv"
             className="hidden"
             disabled={busy}
             onChange={handleSelect}

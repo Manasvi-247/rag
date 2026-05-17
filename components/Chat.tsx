@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 interface Source {
   page?: number;
+  row?: number;
   snippet: string;
 }
 
@@ -118,7 +119,7 @@ export default function Chat({ docId, filename }: Props) {
               {docId ? "Ask anything about this document" : "Upload a document to begin"}
             </p>
             <p className="mt-1 max-w-sm text-xs text-[#5b4f78]">
-              Answers come strictly from the uploaded content. Citations include page numbers when available.
+              Answers come strictly from the uploaded content. Citations include page or row numbers when available.
             </p>
 
             {docId && (
@@ -178,9 +179,9 @@ export default function Chat({ docId, filename }: Props) {
                             key={j}
                             className="rounded-lg border border-[#2b2140]/8 bg-white/70 p-2.5 text-[#5b4f78]"
                           >
-                            {s.page !== undefined && (
+                            {(s.page !== undefined || s.row !== undefined) && (
                               <span className="mr-2 inline-block rounded-md bg-[#70d6ff]/20 px-1.5 py-0.5 text-[10px] font-semibold text-[#0c7fb0] ring-1 ring-[#70d6ff]/40">
-                                page {s.page}
+                                {s.page !== undefined ? `page ${s.page}` : `row ${s.row}`}
                               </span>
                             )}
                             <span>{s.snippet}…</span>

@@ -28,7 +28,7 @@ export default function Home() {
           </div>
         </div>
         <a
-          href="https://github.com/"
+          href="https://github.com/Manasvi-247/rag"
           target="_blank"
           rel="noreferrer"
           className="hidden items-center gap-2 rounded-full border border-[#2b2140]/10 bg-white/70 px-3 py-1.5 text-xs font-medium text-[#2b2140] shadow-sm transition hover:bg-white md:inline-flex"
