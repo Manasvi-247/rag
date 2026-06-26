@@ -12,7 +12,8 @@
  *                  └────────────► grounded prompt + Gemini ◄───────┘
  *
  * Differences from vanilla RAG:
- *   - Retrieve more candidates (top-k = 8) so the grader has room to filter.
+ *   - Retrieve a small candidate pool (top-k = 4) so the grader has room to
+ *     filter while keeping latency and per-call token cost low.
  *   - One Gemini call grades all chunks in JSON (cheaper than per-chunk).
  *   - If the grader rejects everything, we rewrite the query and retry the
  *     retrieval once before giving up.
@@ -47,7 +48,7 @@ export interface AnswerResult {
 }
 
 const CHAT_MODEL = "gemini-2.5-flash-lite";
-const RETRIEVE_K = 8;
+const RETRIEVE_K = 4;
 
 function chatModel() {
   const apiKey = process.env.GOOGLE_API_KEY;
