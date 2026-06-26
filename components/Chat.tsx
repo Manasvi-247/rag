@@ -61,16 +61,34 @@ export default function Chat({ docId, filename }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ docId, question }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Chat failed");
+
+      // The server normally returns JSON, but a timeout/crash yields a plain
+      // text error page. Parse defensively so we never surface a raw
+      // "Unexpected token" JSON error to the user.
+      const raw = await res.text();
+      let data: { answer?: string; error?: string; [k: string]: unknown } = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok || data.answer === undefined) {
+        const friendly =
+          data.error ||
+          (res.status === 504 || res.status === 408
+            ? "The server took too long to answer. Try a more specific question, or ask again."
+            : `Something went wrong (HTTP ${res.status}). Please try again.`);
+        throw new Error(friendly);
+      }
       setMessages((m) => [
         ...m,
         {
           role: "assistant",
-          content: data.answer,
-          sources: data.sources,
-          mode: data.mode,
-          rewrittenQuery: data.rewrittenQuery,
+          content: data.answer as string,
+          sources: data.sources as Message["sources"],
+          mode: data.mode as Message["mode"],
+          rewrittenQuery: data.rewrittenQuery as Message["rewrittenQuery"],
         },
       ]);
     } catch (err) {
